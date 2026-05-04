@@ -3,7 +3,6 @@ import random
 from datetime import datetime, timedelta
 
 def generate_test_logs(num_files=5, lines_per_file=3000):
-    # Create an output folder dedicated to our test logs
     os.makedirs("test_logs", exist_ok=True)
     
     error_messages = [
