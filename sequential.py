@@ -2,12 +2,17 @@ import time
 import re
 from collections import Counter, defaultdict
 
-def run_analysis(files, check_cancel=None):
+def run_analysis(files, check_cancel=None, progress_cb=None):
+    """
+    Runs sequential log analysis on a list of files.
+    Returns: (total_time_seconds, total_errors, most_common_list, errors_per_minute_dict)
+    """
     start = time.perf_counter()
     pattern = r"\[(.*?)\] (\w+): (.*)"
     all_errors = []
     
-    for path in files:
+    total = len(files)
+    for i, path in enumerate(files):
         if check_cancel and check_cancel():
             return 0.0, 0, [], {}
             
@@ -26,11 +31,15 @@ def run_analysis(files, check_cancel=None):
                             x = hash(msg)
                             x = x * x
                             
+        # Report progress dynamically outside the line loop per file
+        if progress_cb:
+            progress_cb(i + 1, total)
+                            
     msgs = [m for _, m in all_errors]
     c = Counter(msgs)
     freq = defaultdict(int)
     for t, _ in all_errors:
-        minute = t[:16] 
+        minute = t[:16] # Extract "YYYY-MM-DD HH:MM"
         freq[minute] += 1
         
     t = time.perf_counter() - start

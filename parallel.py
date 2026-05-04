@@ -21,22 +21,39 @@ def _parse_log(path):
 def _worker(path):
     return _parse_log(path)
 
-def run_analysis(files, check_cancel=None):
+def run_analysis(files, check_cancel=None, progress_cb=None):
+    """
+    Runs parallel log analysis on a list of files.
+    Returns: (total_time_seconds, total_errors, most_common_list, errors_per_minute_dict)
+    """
     start = time.perf_counter()
+    total = len(files)
     
     with multiprocessing.Pool() as pool:
-        res_async = pool.map_async(_worker, files)
-        # Watch the async operation loop to check for cancel flags before blocking completely
-        while not res_async.ready():
+        # Launching tasks individually explicitly helps us poll accurate individual real-time completion
+        results = [pool.apply_async(_worker, (f,)) for f in files]
+        
+        last_completed = -1
+        while True:
             if check_cancel and check_cancel():
                 pool.terminate()
                 return 0.0, 0, [], {}
+                
+            completed = sum(1 for r in results if r.ready())
+            
+            # Fire progress updates only when integers advance
+            if completed != last_completed and progress_cb:
+                progress_cb(completed, total)
+                last_completed = completed
+                
+            if completed == total:
+                break
+                
             time.sleep(0.1)
-        results = res_async.get()
 
     all_errors = []
     for r in results:
-        all_errors.extend(r)
+        all_errors.extend(r.get())
 
     msgs = [m for _, m in all_errors]
     c = Counter(msgs)
